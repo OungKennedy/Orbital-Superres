@@ -1,0 +1,9 @@
+# ignore virtual environment
+env/
+
+#ignore pickle file for models
+models/
+
+Predicted/
+Uploads/
+
