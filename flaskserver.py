@@ -5,6 +5,7 @@ import fastai
 from fastai.vision import *
 from fastai.callbacks import *
 from fastai.vision.gan import *
+import torchvision
 app = Flask(__name__)
 
 #load model 
@@ -14,8 +15,25 @@ learn = None
 #export.pkl is in same directory as this python file
 def load_model():
     global learn
-    learn = load_learner('models/')
+    learn = load_learner('models/superres_full_0706')
+def round_up_to_even(num):
+    if int(num) % 2 == 0:
+        return int(num)
+    else:
+        return int(num)+1
+def get_resize(y, z, max_size):
+    if y*2 <= max_size and z*2 <= max_size:
+        y_new = y*2
+        z_new = z*2
+    else:
+        if y > z:
+            y_new = max_size
+            z_new = int(round_up_to_even(z * max_size / y))
 
+        else:
+            z_new = max_size
+            y_new = int(round_up_to_even(y * max_size / z))
+    return (y_new, z_new)
 '''
 fn that receives post request, and downloads incoming file
 High resolution file is generated from the model, and saved.
@@ -37,7 +55,16 @@ def predict():
     filename = 'Uploads/uploaded_img-{}.png'.format(int(time.time()))
     data.save(filename)
     image = open_image(filename)
+    input_x,input_y,input_z = image.shape
+    output_y, output_z = get_resize(input_y,input_z,1000)
+    databunch = (ImageImageList.from_folder('Predicted').split_none()
+          .label_from_func(lambda x: x)
+          .transform(get_transforms(), size=(output_y, output_z), tfm_y=True)
+          .databunch(bs=2, no_check=True).normalize(imagenet_stats, do_y=True))
+    databunch.c = 3
+    learn.data = databunch      
     _,img_hr,b = learn.predict(image)
+    img_hr = img_hr.clamp(0,1) 
     hr_filename = 'hi-res-{}.png'.format(int(time.time()))
     hr_savepath = 'Predicted/' + hr_filename
     Image(img_hr).save(hr_savepath)
@@ -69,4 +96,4 @@ if __name__ == '__main__':
     print("Please wait until server has fully started")
     load_model()
     print("model_loaded")
-    app.run()
+    app.run(host='0.0.0.0', host = 80)
