@@ -1,72 +1,84 @@
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request, send_file, g
 import os
 import time
-import fastai
-from fastai.vision import *
-from fastai.callbacks import *
-from fastai.vision.gan import *
+
+from Scripts.helpers import feature_loss
+from fastai.basic_train import load_learner
+from fastai.vision import Image
 import torchvision
 import Scripts.utils
-from fastai import (basic_train, vision)
 from Scripts.size_change import change_output_size
+
+from werkzeug.utils import secure_filename
+
+from face_detection import LandmarksDetector, image_align
+from utils import feature_loss
+import __main__
+__main__.FeatureLoss = feature_loss
+
 app = Flask(__name__)
+ALLOWED_EXTENSIONS = {'png','jpg','jpeg'}
+save_dir = tempfile.TemporaryDirectory(dir=static)
 
-#load model 
-learn_noise = None
-learn = None
+#load model from models directory
+model = None 
 
-#init feature loss class
-class FeatureLoss(nn.Module):
-    def __init__(self, m_feat, layer_ids, layer_wgts):
-        super().__init__()
-        self.m_feat = m_feat
-        self.loss_features = [self.m_feat[i] for i in layer_ids]
-        self.hooks = hook_outputs(self.loss_features, detach=False)
-        self.wgts = layer_wgts
-        self.metric_names = ['pixel',] + [f'feat_{i}' for i in range(len(layer_ids))
-              ] + [f'gram_{i}' for i in range(len(layer_ids))]
-
-    def make_features(self, x, clone=False):
-        self.m_feat(x)
-        return [(o.clone() if clone else o) for o in self.hooks.stored]
-    
-    def forward(self, input, target):
-        out_feat = self.make_features(target, clone=True)
-        in_feat = self.make_features(input)
-        self.feat_losses = [base_loss(input,target)]
-        self.feat_losses += [base_loss(f_in, f_out)*w
-                             for f_in, f_out, w in zip(in_feat, out_feat, self.wgts)]
-        self.feat_losses += [base_loss(gram_matrix(f_in), gram_matrix(f_out))*w**2 * 5e3
-                             for f_in, f_out, w in zip(in_feat, out_feat, self.wgts)]
-        self.metrics = dict(zip(self.metric_names, self.feat_losses))
-        return sum(self.feat_losses)
-    
-    def __del__(self): self.hooks.remove()
-
-#function that loads model named export.pkl
-#export.pkl is in same directory as this python file
 def load_model():
-    global learn
-    global learn_noise
-    learn = fastai.basic_train.load_learner('models','faces_featloss_2206.pkl')
-    learn_noise = fastai.basic_train.load_learner('models','noise_featloss_2606.pkl')
+    global model
+    model = load_learner('models','resnet34-enhance.pkl')
+    print('model loaded')
+
+def allowed_file(filename):
+    return '.' in filename and \
+        filename.rsplit('.',1)[1].lower() in ALLOWED_EXTENSIONS
+
+def generate_faces(img_path, filename):
+    landmarks_detector = LandmarksDetector()
+    img_paths = []
+    for i, face_landmarks in enumerate(landmarks_detector.get_landmarks(img_path),start=1):
+        # Extract face and save at 512px
+        img = image_align(img_path, face_landmarks)
+        fp_bef = tempfile.NamedTemporaryFile(suffix=str(i)+'bef'+filename, dir=save_dir.name, delete=False)
+        img_save(fp_bef,'PNG')
+
+        # Process face and save
+        img = img.resize((128,128), PIL.Image.BILINEAR)
+        output = predict(img)
+        fp_aft=tempfile.NamedTemporaryFile(suffix=str(i)+'aft'+filename,dir=save_dir.name,delete=False)
+        output.save(fp_aft)
+
+        # Add to list
+        imgs = (os.path.relpath(fp_bef.name), os.path.relpath(fp_aft.name))
+        img_paths.append(imgs)
+    return img_paths
+
 '''
 fn that receives post request, and downloads incoming file
 High resolution file is generated from the model, and saved.
 The filepath is sent back to client
 '''
-@app.route("/", methods=['POST'])
+@app.route("/mobile_predict", methods=['POST'])
+
 def predict():
-    keylist = ''
-    for x in request.files:
-        keylist += x
-        keylist += ','
     try:
         print(request.headers)
         data = request.files['file']
     except:
-        print("error: wrong key" + "\n" + keylist)
-        return jsonify({'message':'invalid key','current keylist':keylist})
+        keylist = [x for x in request.files]
+        keylist_str = ','.join(keylist)
+        wrong_key_str = "error: wrong key, \"file\" expected, got \"{}\" instead".format(keylist_str)
+        print(wrong_key_str)
+        return jsonify({"message":wrong_key_str})
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+
+        fp = tempfile.NamedTemporaryFile(suffix=filename, dir=save_dir.name, delete=False)
+        file.save(fp.name)
+
+        img_paths_list = generate_faces(fp.name, filename)
+        img_paths_str = ','.join(img_paths_list)
+        return jsonify({'filenames':img_paths_str})
     # save uploaded file to Uploads folder
     scale = 2
     filename = 'Uploads/uploaded_img-{}.png'.format(int(time.time()))
@@ -84,7 +96,7 @@ def predict():
     img_denoised = learn_noise.predict(image)[0]
 
     if not do_ibp:
-        change_output_size(learn, input_x*scale,input_y*scale)
+        change_output_size(learn, input_x*scale, input_y*scale)
         img_hr = learn.predict(img_denoised)[0]
     else:
         '''
