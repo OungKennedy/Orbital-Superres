@@ -52,6 +52,29 @@ def generate_faces(img_path, filename):
         img_paths.append(imgs)
     return img_paths
 
+def predict_as_is(img_path, filename):
+    # has issues with scaling
+    img = vision.image.open_image(img_path)
+    # get scale of image
+    _, input_x, input_y = img.shape 
+    img_scale = input_y/input_x
+    # output will be of size output_y by output_x shape
+    output_y = 512 * img_scale
+
+    # prediction
+    fp_bef = tempfile.NamedTemporaryFile('bef'+filename, dir = save_dir.name, delete=False)
+    t1 = time.time()
+    output = predict(img)
+    print("predict-as-is time: ", time.time() - t1)
+    img.save(fp_bef, 'PNG')
+    fp_aft = tempfile.NamedTemporaryFile('aft'+filename, dir=save_dir.name, delete=False)
+    output.save(fp_aft)
+    
+    img_paths = []
+    img_paths.append(os.path.relpath(fp_bef.name))
+    img_paths.append(os.path.relpath(fp_aft.name))
+    return img_paths
+
 '''
 fn that receives post request, and downloads incoming file
 High resolution file is generated from the model, and saved.
@@ -69,58 +92,24 @@ def predict():
         wrong_key_str = "error: wrong key, \"file\" expected, got \"{}\" instead".format(keylist_str)
         print(wrong_key_str)
         return jsonify({"message":wrong_key_str})
-
+    
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
 
         fp = tempfile.NamedTemporaryFile(suffix=filename, dir=save_dir.name, delete=False)
         file.save(fp.name)
 
-        img_paths_list = generate_faces(fp.name, filename)
-        img_paths_str = ','.join(img_paths_list)
-        return jsonify({'filenames':img_paths_str})
-    # save uploaded file to Uploads folder
-    scale = 2
-    filename = 'Uploads/uploaded_img-{}.png'.format(int(time.time()))
-    data.save(filename)
-    # open images as fastai.Vision.image.image type
-    image = vision.image.open_image(filename)
-    channel,input_x,input_y = image.shape
-    #boolean for inference by patching
-    do_ibp = True
-    if input_y < 500 or input_x < 500:
-        do_ibp = False
+        if request.files['do_landmark_detection'] == True:
+            img_paths_list = generate_faces(fp.name, filename)
+            img_paths_str = ','.join(img_paths_list)
+            
+        else :
+            img_paths_list = predict_as_is(fp.name, filename)
+            img_paths_str = ','.join(img_paths_list)
+            
 
-    #denoise image before super resolution
-    change_output_size(learn_noise,input_x,input_y)
-    img_denoised = learn_noise.predict(image)[0]
-
-    if not do_ibp:
-        change_output_size(learn, input_x*scale, input_y*scale)
-        img_hr = learn.predict(img_denoised)[0]
-    else:
-        '''
-        get shape of output (deciding the size of final, super resolution image)
-        limit of 1000 due to long processing time for large images
-        further implementation might feature patching technique
-        which cuts the image into patches and processes them individually
-        before stitching them back together
-        ''' 
-        #NOTE THIS LINE WAS CHANGED
-        patch_size = 500 
-        change_output_size(learn,patch_size*input_x,patch_size*input_y)
-        img_hr = Scripts.utils.predict(learn,img_denoised)
-        
-    # clamp all pixel values in image to be in range of 0 to 1
-    # save file with unique filename in 'Predicted' folder
-    hr_filename = 'hi-res-{}.png'.format(int(time.time()))
-    hr_savepath = 'Predicted/' + hr_filename
-    #NOTE save function changed, image will become negative when using ibp
-    img_hr.save(hr_savepath)
-    # add token to simplify tokenisation on client side
-    hr_filename = '%' + hr_filename + '%'
     # return filename with tokens to client
-    return jsonify({"filename":hr_filename,"status":"ok"})
+    return jsonify({'filenames':img_paths_str, "status":"ok"})
 
 '''
 function that sends file to client
