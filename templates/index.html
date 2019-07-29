@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>BigFace</title>
+
+    <link rel="canonical" href="https://getbootstrap.com/docs/4.3/examples/pricing/">
+
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+  </head>
+  <body>
+
+  <div class="px-3 py-3 pt-md-5 pb-md-4 mx-auto text-center">
+    <h1 class="display-4">BigFace</h1>
+    <p class="lead">Finds a face from a photo <br> and blows it up to 512px</p>
+    <form method="POST" enctype="multipart/form-data">
+      <label for="file-upload">
+        <div class="btn btn-primary btn-lg">Test!</div>
+      </label>
+      <input name="file" type="file" id="file-upload" style="display: none;" onchange="this.form.submit();">
+    </form>
+  </div>
+
+
+  <hr>
+
+  <div class="container">
+    <div class="card-deck mb-3 text-center">
+      <div class="card mb-4 shadow-sm">
+        <div class="card-header">
+          <h4 class="my-0 font-weight-normal">Original</h4>
+        </div>
+        <div class="card-body">
+          <img src="{{ original_fp }}" class="img-fluid">
+        </div>
+      </div>
+    </div>
+
+      {% for orig, proc in fps %}
+
+    <div class="card-deck mb-3 text-center">
+      <div class="card mb-4 shadow-sm">
+        <div class="card-header">
+          <h4 class="my-0 font-weight-normal">OriginalFace</h4>
+        </div>
+        <div class="card-body">
+          <img src="{{ orig }}" class="img-fluid">
+        </div>
+      </div>
+
+      <div class="card mb-4 shadow-sm">
+        <div class="card-header">
+          <h4 class="my-0 font-weight-bold">BigFace</h4>
+        </div>
+        <div class="card-body">
+          <img src="{{ proc }}" class="img-fluid">
+        </div>
+      </div>
+    </div>
+
+      {% endfor %}
+    </div>
+</div>
+</body>
+</html>

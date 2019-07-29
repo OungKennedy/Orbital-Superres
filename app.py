@@ -3,14 +3,15 @@ import time
 from io import BytesIO
 
 from fastai.basic_train import load_learner, np
-from fastai.vision import Image, PIL, pil2tensor, image2np
-from flask import Flask, jsonify, request, send_file, g
+from fastai.vision import Image, PIL, pil2tensor, image2np, open_image
+from flask import Flask, jsonify, request, send_file, render_template,g
 import tempfile 
 
 from werkzeug.utils import secure_filename
 
 from face_detection import LandmarksDetector, image_align
 from Scripts.helpers.feature_loss import FeatureLoss
+from Scripts.size_change import change_output_size
 import __main__
 __main__.FeatureLoss = FeatureLoss 
 
@@ -59,25 +60,29 @@ def generate_faces(img_path, filename):
 def predict_as_is(img_path, filename):
     print("predicting as is\n")
     # has issues with scaling
-    img = vision.image.open_image(img_path)
+    img = PIL.Image.open(img_path) 
     # get scale of image
-    _, input_x, input_y = img.shape 
+    input_x, input_y = img.size
     img_scale = input_y/input_x
     # output will be of size output_y by output_x shape
-    output_y = 512 * img_scale
-
+    output_y = round(512 * img_scale)
+    if output_y % 2 == 1:
+        output_y -= 1
+    img = img.resize((512,output_y), PIL.Image.BILINEAR)
     # prediction
     fp_bef = tempfile.NamedTemporaryFile(suffix='bef'+filename, dir = save_dir.name, delete=False)
     t1 = time.time()
+    change_output_size(model,output_y,512)
     output = predict(img)
+    print(output.shape)
+    change_output_size(model, 512,512)
     print("predict-as-is time: ", time.time() - t1)
     img.save(fp_bef, 'PNG')
     fp_aft = tempfile.NamedTemporaryFile(suffix='aft'+filename, dir=save_dir.name, delete=False)
     output.save(fp_aft)
     
     # Add to list
-    imgs = (os.path.relpath(fp_bef.name), os.path.relpath(fp_aft.name))
-    img_paths.extend(imgs)
+    img_paths = [os.path.relpath(fp_aft.name)]
     return img_paths
 
 '''
@@ -106,22 +111,8 @@ def handle_incoming_post():
         file.save(fp.name)
         print("file saved as " + str(fp.name) + '\n')
         # temporary dummy for boolean to do landmark detection
-        do_landmark_detection = True
-        test_dummy = request.form.get("landmark_detection")
-        test_dummy2 = request.values.get("landmark_detection")
-        arg_list = [i for i in request.args]
-        form_list = [i for i in request.form]
-        value_list = [i for i in request.values]
-        print(arg_list)
-        print(form_list)
-        print(value_list)
-        print(test_dummy)
-        print(test_dummy2)
-        if (test_dummy == "true"):
-            print("successfully acquired signal\n")
-        else :
-            print("did not get signal successfully "+'\n')
-        if  do_landmark_detection == True:
+        do_landmark_detection = request.form.get("landmark_detection") == "true"
+        if  do_landmark_detection:
             print("doing landmark detection\n")
             img_paths_list = generate_faces(fp.name, filename)
             
@@ -160,9 +151,23 @@ def return_image():
     except Exception as e:
         return jsonify({'message':'error encountered','error message':str(e)})
 
-#if __name__ == '__main__':
-#    print("Loading PyTorch model and Flask starting server ...")
-#    print("Please wait until server has fully started")
-#    load_model()
-#    print("model_loaded")
-#    app.run(host='0.0.0.0', port = 80)
+@app.route('/', methods=['POST','GET'])
+def index():
+    print("entered function")
+    g.files = []
+    print("1")
+    if request.method == "POST":
+        print("2")
+        file =request.files["file"]
+        print("3")
+        if file and allowed_file(file.filename):
+            print("4")
+            filename = secure_filename(file.filename)
+
+            fp = tempfile.NamedTemporaryFile(suffix=filename, dir=save_dir.name, delete=False)
+            file.save(fp.name)
+            print("before gen face")
+            img_paths = generate_faces(fp.name, filename)
+            print("aft gen face")
+            return render_template("index.html",original_fp=os.path.relpath(fp.name),fps=[tuple(img_paths)])
+    return render_template("index.html", original_fp="static/img.jpg",fps=[("static/img_bef.png","static/img_aft.png")])
