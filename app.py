@@ -12,6 +12,8 @@ from werkzeug.utils import secure_filename
 from face_detection import LandmarksDetector, image_align
 from Scripts.helpers.feature_loss import FeatureLoss
 from Scripts.size_change import change_output_size
+
+from concurrent.futures import ThreadPoolExecutor
 import __main__
 __main__.FeatureLoss = FeatureLoss 
 
@@ -20,6 +22,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ysecretkeys'
 ALLOWED_EXTENSIONS = {'png','jpg','jpeg'}
 save_dir = tempfile.TemporaryDirectory(dir="static")
+
 
 #load model from models directory
 model = load_learner('models','resnet34-enhance.pkl')
