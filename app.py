@@ -26,6 +26,7 @@ save_dir = tempfile.TemporaryDirectory(dir="static")
 
 #load model from models directory
 model = load_learner('models','resnet34-enhance.pkl')
+landmarks_detector = LandmarksDetector()
 print('model loaded')
 
 @app.route('/_hello_world')
@@ -41,7 +42,6 @@ def predict(img):
 
 def generate_faces(img_path, filename):
     print("generating faces\n")
-    landmarks_detector = LandmarksDetector()
     img_paths = []
     for i, face_landmarks in enumerate(landmarks_detector.get_landmarks(img_path),start=1):
         # Extract face and save at 512px
@@ -98,7 +98,6 @@ The filepath is sent back to client
 def handle_incoming_post():
     try:
         print(request.headers)
-        print(request.data)
         file = request.files['file']
     except:
         keylist = [x for x in request.files]
