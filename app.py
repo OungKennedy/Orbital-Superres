@@ -71,7 +71,7 @@ def predict_as_is(img_path, filename):
     output_y = round(512 * img_scale)
     if output_y % 2 == 1:
         output_y -= 1
-    img = img.resize((512,output_y), PIL.Image.BILINEAR)
+    img = img.resize((128,round(128 * img_scale)), PIL.Image.BILINEAR)
     # prediction
     fp_bef = tempfile.NamedTemporaryFile(suffix='bef'+filename, dir = save_dir.name, delete=False)
     t1 = time.time()
