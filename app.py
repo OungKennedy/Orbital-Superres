@@ -88,6 +88,13 @@ def predict_as_is(img_path, filename):
     img_paths = [os.path.relpath(fp_aft.name)]
     return img_paths
 
+def pair_up(img_paths):
+    paired_paths = []
+
+    while len(img_paths) > 0:
+        first, second = img_paths.pop(0), img_paths.pop(0)
+        paired_paths.append((first, second))
+    return paired_paths
 '''
 fn that receives post request, and downloads incoming file
 High resolution file is generated from the model, and saved.
@@ -154,22 +161,18 @@ def return_image():
         return jsonify({'message':'error encountered','error message':str(e)})
 
 @app.route('/', methods=['POST','GET'])
+
 def index():
-    print("entered function")
     g.files = []
-    print("1")
     if request.method == "POST":
-        print("2")
         file =request.files["file"]
-        print("3")
         if file and allowed_file(file.filename):
-            print("4")
             filename = secure_filename(file.filename)
 
             fp = tempfile.NamedTemporaryFile(suffix=filename, dir=save_dir.name, delete=False)
             file.save(fp.name)
-            print("before gen face")
             img_paths = generate_faces(fp.name, filename)
-            print("aft gen face")
-            return render_template("index.html",original_fp=os.path.relpath(fp.name),fps=[tuple(img_paths)])
+            fps = pair_up(img_paths)
+            print(fps)
+            return render_template("index.html",original_fp=os.path.relpath(fp.name),fps=fps)
     return render_template("index.html", original_fp="static/img.jpg",fps=[("static/img_bef.png","static/img_aft.png")])
