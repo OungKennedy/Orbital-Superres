@@ -5,6 +5,7 @@ from io import BytesIO
 from fastai.basic_train import load_learner, np
 from fastai.vision import Image, PIL, pil2tensor, image2np, open_image
 from flask import Flask, jsonify, request, send_file, render_template,g
+from waitress import serve
 import tempfile 
 
 from werkzeug.utils import secure_filename
@@ -28,6 +29,7 @@ save_dir = tempfile.TemporaryDirectory(dir="static")
 model = load_learner('models','resnet34-enhance.pkl')
 landmarks_detector = LandmarksDetector()
 print('model loaded')
+
 
 @app.route('/_hello_world')
 def allowed_file(filename):
