@@ -4,4 +4,3 @@ env/
 #ignore pickle file for models
 models/
 
-static/

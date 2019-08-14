@@ -177,4 +177,4 @@ def index():
             fps = pair_up(img_paths)
             print(fps)
             return render_template("index.html",original_fp=os.path.relpath(fp.name),fps=fps)
-    return render_template("index.html", original_fp="static/img.jpg",fps=[("static/img_bef.png","static/img_aft.png")])
+    return render_template("index.html", original_fp="static/img.png",fps=[("static/bef.png","static/aft.png")])
