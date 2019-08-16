@@ -7,8 +7,9 @@ This project was done in collaboration with Rusdi Haizim.
 BigFace is an application that upscales and improves the quality of low-resolution faces in images.
 This application uses a deep learning model that uses a Unet with a GAN loss. 
 A simple backend server has also been set up using Flask and Waitress.
-Test it on our web application [here](http://tinyurl.com/bigfaceapp)
-Alternatively, download the mobile apk for Android [here](https://github.com/RusdiHaizim/orbital_deblurteam)
+Test it on our web application [here](http://tinyurl.com/bigfaceapp).
+
+Alternatively, download the mobile apk for Android [here](https://github.com/RusdiHaizim/orbital_deblurteam).
 
 ## Results
 |Before|After|
